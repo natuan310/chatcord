@@ -2,16 +2,18 @@ const chatForm = document.getElementById('chat-form');
 const chatMessages = document.querySelector('.chat-messages');
 const roomName = document.getElementById('room-name');
 const userList = document.getElementById('users');
+// const speechLang = document.getElementById('speechLang').seletedOptions[0].value;
+// const transLang = document.getElementById('transLang').seletedOptions[0].value;
 
 // Get username and room from URL
-const { username, room } = Qs.parse(location.search, {
+const { username, room, speechLang, transLang } = Qs.parse(location.search, {
   ignoreQueryPrefix: true
 });
 
 const socket = io();
 
 // Join chatroom
-socket.emit('joinRoom', { username, room });
+socket.emit('joinRoom', { username, room, speechLang, transLang });
 
 // Get room and users
 socket.on('roomUsers', ({ room, users }) => {
@@ -34,10 +36,10 @@ chatForm.addEventListener('submit', e => {
 
   // Get message text
   let msg = e.target.elements.msg.value;
-  
+
   msg = msg.trim();
-  
-  if (!msg){
+
+  if (!msg) {
     return false;
   }
 
@@ -73,16 +75,24 @@ function outputRoomName(room) {
 // Add users to DOM
 function outputUsers(users) {
   userList.innerHTML = '';
-  users.forEach(user=>{
+  users.forEach(user => {
     const li = document.createElement('li');
     li.innerText = user.username;
     userList.appendChild(li);
   });
- }
+}
 
 // Catch Call event
 const callBtn = document.getElementById('call-btn')
-callBtn.addEventListener('click', streamAudio)
+callBtn.addEventListener('click', () => {
+  socket.emit('start-call', {
+    speechLang : speechLang,
+    transLang: transLang
+  })
+  console.log('START CALL')
+  streamAudio()
+})
+
 
 
 // Stream audio to server
@@ -100,25 +110,27 @@ function streamAudio() {
       sampleRate: 44100,
       recorderType: StereoAudioRecorder,
       numberOfAudioChannels: 1,
-      timeSlice: 500,
+      timeSlice: 2000,
       desiredSampRate: 16000,
 
       // as soon as the stream is available
       ondataavailable: function (blob) {
+        // console.log(blob)
         // making use of socket.io-stream for bi-directional
         // streaming, create a stream
         var stream = ss.createStream();
         // stream directly to server
         // it will be temp. stored locally
-        ss(socket).emit('stream-transcribe', stream, {
-          // 'name': 'stream.wav',
-          // 'size': blob.size,
-          'userName': username,
-          'room': room,
-          // 'speechLang': speechLang,
-          // 'transLang': transLang,
-          // 'socketId': socketId
-        });
+        ss(socket).emit('stream-transcribe', stream)
+        // ss(socket).emit('stream-transcribe', stream, {
+        //   // 'name': 'stream.wav',
+        //   // 'size': blob.size,
+        //   'userName': username,
+        //   'room': room,
+        //   'speechLang': speechLang,
+        //   'transLang': transLang,
+        //   // 'socketId': socketId
+        // });
         // pipe the audio blob to the read stream
         ss.createBlobReadStream(blob).pipe(stream);
       }
@@ -128,6 +140,7 @@ function streamAudio() {
     console.error(JSON.stringify(error));
   });
 }
+
 
 // Check muted status
 function mutedStatus() {
